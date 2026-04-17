@@ -1,0 +1,12 @@
+## Xcode
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+build/
+
+## Old project name (Xcode sometimes recreates it)
+MacThemeSwitcher.xcodeproj/
+
+## macOS
+.DS_Store
