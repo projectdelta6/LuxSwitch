@@ -38,8 +38,8 @@ All settings are accessible from the menu bar popover:
 
 | Setting | Default | Description |
 |---|---|---|
-| Threshold | 50,000 lux | The midpoint for light/dark switching |
-| Hysteresis | 20,000 lux | Buffer zone above and below the threshold to prevent flickering |
+| Threshold | 200 lux | The midpoint for light/dark switching (auto-detected per sensor type) |
+| Hysteresis | 80 lux | Buffer zone above and below the threshold to prevent flickering |
 | Poll Interval | 30 sec | How often the sensor is read |
 | Transition Delay | 5 sec | How long to wait before switching, to ignore brief light changes |
 | Dark Mode Schedule | Off | Force dark mode between set hours (default 22:00–07:00) |

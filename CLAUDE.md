@@ -30,7 +30,7 @@ The app is four files with a simple unidirectional flow:
 
 - **`LuxSwitchApp.swift`** — Entry point. Creates a `MenuBarExtra` with a window-style popover. The menu bar icon reflects current mode (sun/moon).
 - **`ThemeManager.swift`** — Central `ObservableObject` managing all state. Polls the sensor on a timer, evaluates threshold with hysteresis, toggles system appearance via AppleScript (`NSAppleScript`), persists settings to `UserDefaults`, and restores the user's preferred theme on quit/disable.
-- **`AmbientLightSensor.swift`** — Static IOKit HID wrapper that reads the ambient light sensor value in lux. Stateless — just call `AmbientLightSensor.readLux()`.
+- **`AmbientLightSensor.swift`** — Static IOKit wrapper that reads the ambient light sensor. Uses `IOHIDEventSystemClient` (private API, works on both Intel and Apple Silicon) with `IOHIDManager` as fallback. Call `AmbientLightSensor.read()` for a `Reading` (lux + sensor type) or `readLux()` for just the value.
 - **`MenuBarView.swift`** — SwiftUI popover UI. Displays status, permission warnings, and settings controls. Binds to `ThemeManager` via `@EnvironmentObject`.
 
 ### Key Design Details

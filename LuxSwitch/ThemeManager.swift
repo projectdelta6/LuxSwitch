@@ -131,13 +131,13 @@ final class ThemeManager: ObservableObject {
         static let pollInterval = 30
         static let transitionDelay = 5
 
-        // Intel HID Manager: raw sensor values (typically 0–100,000+)
-        static let thresholdIntel = 50_000
-        static let hysteresisIntel = 20_000
+        // Event System (works on both Intel and Apple Silicon): real lux (typically 0–2,000)
+        static let thresholdEventSystem = 200
+        static let hysteresisEventSystem = 80
 
-        // Apple Silicon Event System: real lux values (typically 0–2,000)
-        static let thresholdAppleSilicon = 200
-        static let hysteresisAppleSilicon = 80
+        // HID Manager fallback: raw sensor values (typically 0–100,000+)
+        static let thresholdHID = 50_000
+        static let hysteresisHID = 20_000
     }
 
     static var appVersion: String {
@@ -148,8 +148,8 @@ final class ThemeManager: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.register(defaults: [
             Keys.isEnabled: true,
-            Keys.threshold: Defaults.thresholdIntel,
-            Keys.hysteresis: Defaults.hysteresisIntel,
+            Keys.threshold: Defaults.thresholdEventSystem,
+            Keys.hysteresis: Defaults.hysteresisEventSystem,
             Keys.pollInterval: Defaults.pollInterval,
             Keys.transitionDelay: Defaults.transitionDelay,
             Keys.showLuxInMenuBar: false,
@@ -379,11 +379,11 @@ final class ThemeManager: ObservableObject {
 
         switch sensorType {
         case .eventSystem:
-            newThreshold = Defaults.thresholdAppleSilicon
-            newHysteresis = Defaults.hysteresisAppleSilicon
+            newThreshold = Defaults.thresholdEventSystem
+            newHysteresis = Defaults.hysteresisEventSystem
         case .hidManager:
-            newThreshold = Defaults.thresholdIntel
-            newHysteresis = Defaults.hysteresisIntel
+            newThreshold = Defaults.thresholdHID
+            newHysteresis = Defaults.hysteresisHID
         }
 
         if threshold != newThreshold {
