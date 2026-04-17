@@ -24,6 +24,7 @@ final class ThemeManager: ObservableObject {
 
     @Published var threshold: Int {
         didSet {
+            if threshold < 0 { threshold = 0 }
             UserDefaults.standard.set(threshold, forKey: Keys.threshold)
             UserDefaults.standard.set(true, forKey: Keys.hasCustomisedThresholds)
         }
@@ -31,20 +32,25 @@ final class ThemeManager: ObservableObject {
 
     @Published var hysteresis: Int {
         didSet {
+            if hysteresis < 0 { hysteresis = 0 }
             UserDefaults.standard.set(hysteresis, forKey: Keys.hysteresis)
             UserDefaults.standard.set(true, forKey: Keys.hasCustomisedThresholds)
         }
     }
 
-    @Published var pollInterval: Int {
+    @Published var pollInterval: Double {
         didSet {
+            if pollInterval < 0.5 { pollInterval = 0.5 }
             UserDefaults.standard.set(pollInterval, forKey: Keys.pollInterval)
             restartPolling()
         }
     }
 
     @Published var transitionDelay: Int {
-        didSet { UserDefaults.standard.set(transitionDelay, forKey: Keys.transitionDelay) }
+        didSet {
+            if transitionDelay < 0 { transitionDelay = 0 }
+            UserDefaults.standard.set(transitionDelay, forKey: Keys.transitionDelay)
+        }
     }
 
     @Published var preferredDarkMode: Bool {
@@ -128,12 +134,12 @@ final class ThemeManager: ObservableObject {
     }
 
     private enum Defaults {
-        static let pollInterval = 30
+        static let pollInterval = 30.0
         static let transitionDelay = 5
 
         // Event System (works on both Intel and Apple Silicon): real lux (typically 0–2,000)
-        static let thresholdEventSystem = 200
-        static let hysteresisEventSystem = 80
+        static let thresholdEventSystem = 112
+        static let hysteresisEventSystem = 10
 
         // HID Manager fallback: raw sensor values (typically 0–100,000+)
         static let thresholdHID = 50_000
@@ -159,7 +165,7 @@ final class ThemeManager: ObservableObject {
         self.isEnabled = defaults.bool(forKey: Keys.isEnabled)
         self.threshold = defaults.integer(forKey: Keys.threshold)
         self.hysteresis = defaults.integer(forKey: Keys.hysteresis)
-        self.pollInterval = defaults.integer(forKey: Keys.pollInterval)
+        self.pollInterval = max(0.5, defaults.double(forKey: Keys.pollInterval))
         self.transitionDelay = defaults.integer(forKey: Keys.transitionDelay)
         self.launchAtLogin = SMAppService.mainApp.status == .enabled
         self.showLuxInMenuBar = defaults.bool(forKey: Keys.showLuxInMenuBar)
@@ -332,7 +338,7 @@ final class ThemeManager: ObservableObject {
 
     private func startPolling() {
         poll()
-        timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(pollInterval), repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
             self?.poll()
         }
     }

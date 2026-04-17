@@ -38,10 +38,10 @@ All settings are accessible from the menu bar popover:
 
 | Setting | Default | Description |
 |---|---|---|
-| Threshold | 200 lux | The midpoint for light/dark switching (auto-detected per sensor type) |
-| Hysteresis | 80 lux | Buffer zone above and below the threshold to prevent flickering |
-| Poll Interval | 30 sec | How often the sensor is read |
-| Transition Delay | 5 sec | How long to wait before switching, to ignore brief light changes |
+| Threshold | 112 lux | The midpoint for light/dark switching (auto-detected per sensor type) |
+| Hysteresis | 10 lux | Buffer zone above and below the threshold to prevent flickering |
+| Poll Interval | 30 sec | How often the sensor is read (0.5s–60s) |
+| Transition Delay | 5 sec | How long to wait before switching, to ignore brief light changes (off–30s) |
 | Dark Mode Schedule | Off | Force dark mode between set hours (default 22:00–07:00) |
 | Show Lux in Menu Bar | Off | Display the current lux reading next to the menu bar icon |
 | Launch at Login | Off | Start LuxSwitch automatically when you log in |

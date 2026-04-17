@@ -120,22 +120,23 @@ struct MenuBarView: View {
                     }
 
                     Section("Polling") {
-                        HStack {
-                            Text("Poll Interval")
-                            Spacer()
-                            TextField("", value: $themeManager.pollInterval, format: .number)
-                                .frame(width: 100)
-                                .multilineTextAlignment(.trailing)
-                            Text("sec")
+                        Picker("Poll Interval", selection: $themeManager.pollInterval) {
+                            Text("0.5 sec").tag(0.5)
+                            Text("1 sec").tag(1.0)
+                            Text("2 sec").tag(2.0)
+                            Text("5 sec").tag(5.0)
+                            Text("10 sec").tag(10.0)
+                            Text("30 sec").tag(30.0)
+                            Text("60 sec").tag(60.0)
                         }
 
-                        HStack {
-                            Text("Transition Delay")
-                            Spacer()
-                            TextField("", value: $themeManager.transitionDelay, format: .number)
-                                .frame(width: 100)
-                                .multilineTextAlignment(.trailing)
-                            Text("sec")
+                        Picker("Transition Delay", selection: $themeManager.transitionDelay) {
+                            Text("Off").tag(0)
+                            Text("2 sec").tag(2)
+                            Text("5 sec").tag(5)
+                            Text("10 sec").tag(10)
+                            Text("15 sec").tag(15)
+                            Text("30 sec").tag(30)
                         }
 
                         Text("Waits before switching to avoid brief light changes.")
