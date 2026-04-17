@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarView: View {
 
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var updateManager: UpdateManager
 
     private static let minHeight: CGFloat = 200
     private static let maxHeight: CGFloat = 600
@@ -75,6 +76,15 @@ struct MenuBarView: View {
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
+            }
+
+            // Update banner
+            if case .updateAvailable = updateManager.state {
+                updateBanner
+            } else if case .downloading = updateManager.state {
+                downloadingBanner
+            } else if case .error(let message) = updateManager.state {
+                errorBanner(message)
             }
 
             Divider()
@@ -160,6 +170,24 @@ struct MenuBarView: View {
                     Section("General") {
                         Toggle("Launch at Login", isOn: $themeManager.launchAtLogin)
                         Toggle("Show Lux in Menu Bar", isOn: $themeManager.showLuxInMenuBar)
+
+                        HStack {
+                            Button("Check for Updates") {
+                                updateManager.checkForUpdates()
+                            }
+                            .disabled(updateManager.state == .checking)
+
+                            if updateManager.state == .checking {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .padding(.leading, 4)
+                            } else if updateManager.state == .upToDate {
+                                Text("Up to date")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.leading, 4)
+                            }
+                        }
                     }
                 }
                 .formStyle(.grouped)
@@ -213,6 +241,87 @@ struct MenuBarView: View {
             .padding(.vertical, 8)
         }
         .frame(width: 320, height: panelHeight)
+    }
+}
+
+// MARK: - Update banners
+
+private extension MenuBarView {
+
+    var updateBanner: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundStyle(.blue)
+                Text("v\(updateManager.latestVersion ?? "?") available")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                Spacer()
+            }
+
+            HStack(spacing: 12) {
+                Button("Install Update") {
+                    updateManager.downloadAndInstall()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+
+                Button("Release Notes") {
+                    updateManager.openReleasePage()
+                }
+                .controlSize(.small)
+
+                Spacer()
+
+                Button {
+                    updateManager.dismissUpdate()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption2)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+    }
+
+    var downloadingBanner: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 6) {
+                Text("Downloading update...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            ProgressView(value: updateManager.downloadProgress)
+                .progressViewStyle(.linear)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+    }
+
+    func errorBanner(_ message: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Spacer()
+            Button {
+                updateManager.dismissUpdate()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption2)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 }
 

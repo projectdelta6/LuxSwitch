@@ -4,22 +4,6 @@ A lightweight macOS menu bar app that automatically switches between light and d
 
 LuxSwitch reads your Mac's ambient light sensor and toggles the system appearance when the light level crosses a configurable threshold — so your display adapts to your environment without you touching a thing.
 
-## Install
-
-1. Download the latest `.pkg` or `.zip` from [GitHub Releases](https://github.com/projectdelta6/LuxSwitch/releases)
-2. **Installer (.pkg):** Double-click and follow the prompts — the app installs to `/Applications` and launches automatically
-3. **Zip (.zip):** Extract and drag `LuxSwitch.app` to your Applications folder, then open it
-
-Both downloads are **universal binaries** that run natively on Intel and Apple Silicon Macs.
-
-### Permissions
-
-On first launch, macOS will ask you to grant **Automation** access so LuxSwitch can toggle the system appearance. You can find this in **System Settings > Privacy & Security > Automation**.
-
-### Launch at Login
-
-Enable "Launch at Login" in the LuxSwitch settings panel to have it start automatically when you log in. This registers with macOS as a login item (visible in **System Settings > General > Login Items**).
-
 ## Features
 
 - **Automatic theme switching** based on ambient light (lux) readings
