@@ -23,11 +23,17 @@ final class ThemeManager: ObservableObject {
     }
 
     @Published var threshold: Int {
-        didSet { UserDefaults.standard.set(threshold, forKey: Keys.threshold) }
+        didSet {
+            UserDefaults.standard.set(threshold, forKey: Keys.threshold)
+            UserDefaults.standard.set(true, forKey: Keys.hasCustomisedThresholds)
+        }
     }
 
     @Published var hysteresis: Int {
-        didSet { UserDefaults.standard.set(hysteresis, forKey: Keys.hysteresis) }
+        didSet {
+            UserDefaults.standard.set(hysteresis, forKey: Keys.hysteresis)
+            UserDefaults.standard.set(true, forKey: Keys.hasCustomisedThresholds)
+        }
     }
 
     @Published var pollInterval: Int {
@@ -104,6 +110,8 @@ final class ThemeManager: ObservableObject {
     private var delayWorkItem: DispatchWorkItem?
     private var terminationObserver: Any?
 
+    private var hasCalibrated = false
+
     private enum Keys {
         static let isEnabled = "isEnabled"
         static let threshold = "threshold"
@@ -116,13 +124,20 @@ final class ThemeManager: ObservableObject {
         static let scheduleEnabled = "scheduleEnabled"
         static let scheduleDarkFrom = "scheduleDarkFrom"
         static let scheduleDarkUntil = "scheduleDarkUntil"
+        static let hasCustomisedThresholds = "hasCustomisedThresholds"
     }
 
     private enum Defaults {
-        static let threshold = 50_000
-        static let hysteresis = 20_000
         static let pollInterval = 30
         static let transitionDelay = 5
+
+        // Intel HID Manager: raw sensor values (typically 0–100,000+)
+        static let thresholdIntel = 50_000
+        static let hysteresisIntel = 20_000
+
+        // Apple Silicon Event System: real lux values (typically 0–2,000)
+        static let thresholdAppleSilicon = 200
+        static let hysteresisAppleSilicon = 80
     }
 
     static var appVersion: String {
@@ -133,8 +148,8 @@ final class ThemeManager: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.register(defaults: [
             Keys.isEnabled: true,
-            Keys.threshold: Defaults.threshold,
-            Keys.hysteresis: Defaults.hysteresis,
+            Keys.threshold: Defaults.thresholdIntel,
+            Keys.hysteresis: Defaults.hysteresisIntel,
             Keys.pollInterval: Defaults.pollInterval,
             Keys.transitionDelay: Defaults.transitionDelay,
             Keys.showLuxInMenuBar: false,
@@ -330,14 +345,15 @@ final class ThemeManager: ObservableObject {
     private func poll() {
         DispatchQueue.global(qos: .background).async { [weak self] in
             guard let self else { return }
-            let lux = AmbientLightSensor.readLux()
+            let reading = AmbientLightSensor.read()
 
             DispatchQueue.main.async {
-                self.sensorAvailable = lux != nil
-                if let lux {
-                    self.currentLux = lux
+                self.sensorAvailable = reading != nil
+                if let reading {
+                    self.currentLux = reading.lux
+                    self.calibrateDefaultsIfNeeded(for: reading.sensorType)
                     if self.automationPermission == .granted {
-                        self.evaluateThreshold(lux: lux)
+                        self.evaluateThreshold(lux: reading.lux)
                     }
                 } else {
                     // Sensor unavailable (e.g. lid closed in clamshell mode)
@@ -346,6 +362,35 @@ final class ThemeManager: ObservableObject {
                     self.cancelPendingSwitch()
                 }
             }
+        }
+    }
+
+    // MARK: - Auto-calibrate defaults
+
+    private func calibrateDefaultsIfNeeded(for sensorType: AmbientLightSensor.SensorType) {
+        guard !hasCalibrated else { return }
+        hasCalibrated = true
+
+        // Don't override if the user has already changed the thresholds
+        guard !UserDefaults.standard.bool(forKey: Keys.hasCustomisedThresholds) else { return }
+
+        let newThreshold: Int
+        let newHysteresis: Int
+
+        switch sensorType {
+        case .eventSystem:
+            newThreshold = Defaults.thresholdAppleSilicon
+            newHysteresis = Defaults.hysteresisAppleSilicon
+        case .hidManager:
+            newThreshold = Defaults.thresholdIntel
+            newHysteresis = Defaults.hysteresisIntel
+        }
+
+        if threshold != newThreshold {
+            threshold = newThreshold
+        }
+        if hysteresis != newHysteresis {
+            hysteresis = newHysteresis
         }
     }
 

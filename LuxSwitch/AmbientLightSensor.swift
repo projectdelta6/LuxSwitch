@@ -30,9 +30,25 @@ enum AmbientLightSensor {
     private static let sensorUsagePage: UInt32 = 0x20
     private static let illuminanceUsage: UInt32 = 0x04D1
 
+    enum SensorType {
+        /// Apple Silicon — IOHIDEventSystemClient (reports real lux, typically 0–2000)
+        case eventSystem
+        /// Intel — HID Sensors usage page (reports raw values, typically 0–100,000+)
+        case hidManager
+    }
+
+    struct Reading {
+        let lux: Int
+        let sensorType: SensorType
+    }
+
     static func readLux() -> Int? {
-        if let lux = readViaEventSystem() { return lux }
-        if let lux = readViaHID() { return lux }
+        return read()?.lux
+    }
+
+    static func read() -> Reading? {
+        if let lux = readViaEventSystem() { return Reading(lux: lux, sensorType: .eventSystem) }
+        if let lux = readViaHID() { return Reading(lux: lux, sensorType: .hidManager) }
         return nil
     }
 
