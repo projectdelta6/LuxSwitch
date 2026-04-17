@@ -30,7 +30,7 @@ struct MenuBarView: View {
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
                         } else if !themeManager.sensorAvailable {
-                            Text("Sensor unavailable — lid closed?")
+                            Text("No ambient light sensor detected")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
