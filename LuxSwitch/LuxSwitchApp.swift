@@ -10,7 +10,13 @@ struct LuxSwitchApp: App {
             MenuBarView()
                 .environmentObject(themeManager)
         } label: {
-            Image(systemName: themeManager.isDarkMode ? "moon.fill" : "sun.max.fill")
+            HStack(spacing: 4) {
+                Image(systemName: themeManager.isDarkMode ? "moon.fill" : "sun.max.fill")
+                if let text = themeManager.menuBarText {
+                    Text(text)
+                        .monospacedDigit()
+                }
+            }
         }
         .menuBarExtraStyle(.window)
     }

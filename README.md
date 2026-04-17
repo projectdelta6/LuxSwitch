@@ -4,20 +4,38 @@ A lightweight macOS menu bar app that automatically switches between light and d
 
 LuxSwitch reads your Mac's ambient light sensor and toggles the system appearance when the light level crosses a configurable threshold — so your display adapts to your environment without you touching a thing.
 
+## Install
+
+1. Download the latest `.pkg` or `.zip` from [GitHub Releases](https://github.com/projectdelta6/LuxSwitch/releases)
+2. **Installer (.pkg):** Double-click and follow the prompts — the app installs to `/Applications` and launches automatically
+3. **Zip (.zip):** Extract and drag `LuxSwitch.app` to your Applications folder, then open it
+
+Both downloads are **universal binaries** that run natively on Intel and Apple Silicon Macs.
+
+### Permissions
+
+On first launch, macOS will ask you to grant **Automation** access so LuxSwitch can toggle the system appearance. You can find this in **System Settings > Privacy & Security > Automation**.
+
+### Launch at Login
+
+Enable "Launch at Login" in the LuxSwitch settings panel to have it start automatically when you log in. This registers with macOS as a login item (visible in **System Settings > General > Login Items**).
+
 ## Features
 
 - **Automatic theme switching** based on ambient light (lux) readings
 - **Configurable threshold and hysteresis** to prevent rapid toggling near the boundary
-- **Adjustable polling interval** to balance responsiveness and efficiency
+- **Transition delay** — waits before switching to avoid brief light changes (e.g. clouds, walking past a window)
+- **Dark mode schedule** — force dark mode during set hours regardless of ambient light
+- **Show lux in menu bar** — optional numeric lux display next to the sun/moon icon
+- **Launch at login** — start automatically when you log in
 - **Preferred default theme** — restored when auto-switch is disabled or the app quits
+- **Clamshell mode aware** — automatically pauses auto-switching when the lid is closed
 - **Menu bar only** — no Dock icon, runs quietly in the background
-- Displays current lux reading and mode (sun/moon icon) in the menu bar
 
 ## Requirements
 
-- macOS 13.0+
+- macOS 14.0+ (Sonoma)
 - A Mac with an ambient light sensor (MacBooks, some iMacs)
-- **Automation permission** — LuxSwitch uses AppleScript to toggle System Events appearance preferences. On first launch, macOS will prompt you to grant access in **System Settings > Privacy & Security > Automation**.
 
 ## How It Works
 
@@ -25,7 +43,10 @@ LuxSwitch reads your Mac's ambient light sensor and toggles the system appearanc
 2. Compares the lux reading against a threshold with hysteresis:
    - Switches to **light mode** when lux rises above `threshold + hysteresis`
    - Switches to **dark mode** when lux drops below `threshold - hysteresis`
-3. On quit or disable, restores your preferred default theme
+3. Waits for the transition delay (default: 5 seconds) before applying the switch
+4. If a dark mode schedule is active, forces dark mode during those hours
+5. If the lid is closed (clamshell mode), pauses auto-switching until the sensor is available again
+6. On quit or disable, restores your preferred default theme
 
 ## Configuration
 
@@ -36,11 +57,23 @@ All settings are accessible from the menu bar popover:
 | Threshold | 50,000 lux | The midpoint for light/dark switching |
 | Hysteresis | 20,000 lux | Buffer zone above and below the threshold to prevent flickering |
 | Poll Interval | 30 sec | How often the sensor is read |
+| Transition Delay | 5 sec | How long to wait before switching, to ignore brief light changes |
+| Dark Mode Schedule | Off | Force dark mode between set hours (default 22:00–07:00) |
+| Show Lux in Menu Bar | Off | Display the current lux reading next to the menu bar icon |
+| Launch at Login | Off | Start LuxSwitch automatically when you log in |
 | Default Theme | System current | Theme restored when auto-switch is off or the app quits |
 
-## Building
+## Building from Source
 
 Open `LuxSwitch.xcodeproj` in Xcode and build/run. The app uses SwiftUI with `MenuBarExtra` and requires no external dependencies.
+
+### Release Build
+
+```bash
+./scripts/build-release.sh 1.0.0
+```
+
+This creates a universal binary (Intel + Apple Silicon), a `.pkg` installer, and a `.zip` archive in `build/release/output/`.
 
 ### App Icon
 
@@ -51,8 +84,6 @@ pip install Pillow
 python generate_icon.py
 ```
 
-This produces all required icon sizes in the asset catalog.
-
 ## License
 
-MIT
+[MIT](LICENSE)

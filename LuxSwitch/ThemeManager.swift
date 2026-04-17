@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Combine
+import ServiceManagement
 
 final class ThemeManager: ObservableObject {
 
@@ -14,6 +15,7 @@ final class ThemeManager: ObservableObject {
                 preferredDarkMode = isDarkMode
             } else {
                 // Restore user's preferred theme
+                cancelPendingSwitch()
                 restorePreferredTheme()
             }
             restartPolling()
@@ -35,20 +37,71 @@ final class ThemeManager: ObservableObject {
         }
     }
 
+    @Published var transitionDelay: Int {
+        didSet { UserDefaults.standard.set(transitionDelay, forKey: Keys.transitionDelay) }
+    }
+
     @Published var preferredDarkMode: Bool {
         didSet { UserDefaults.standard.set(preferredDarkMode, forKey: Keys.preferredDarkMode) }
+    }
+
+    @Published var launchAtLogin: Bool {
+        didSet {
+            do {
+                if launchAtLogin {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                print("Failed to \(launchAtLogin ? "enable" : "disable") launch at login: \(error)")
+                // Revert on failure without re-triggering didSet
+                let current = SMAppService.mainApp.status == .enabled
+                if launchAtLogin != current {
+                    launchAtLogin = current
+                }
+            }
+        }
+    }
+
+    @Published var showLuxInMenuBar: Bool {
+        didSet { UserDefaults.standard.set(showLuxInMenuBar, forKey: Keys.showLuxInMenuBar) }
+    }
+
+    @Published var scheduleEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(scheduleEnabled, forKey: Keys.scheduleEnabled)
+            restartScheduleTimer()
+        }
+    }
+
+    @Published var scheduleDarkFrom: Date {
+        didSet { UserDefaults.standard.set(scheduleDarkFrom.timeIntervalSinceReferenceDate, forKey: Keys.scheduleDarkFrom) }
+    }
+
+    @Published var scheduleDarkUntil: Date {
+        didSet { UserDefaults.standard.set(scheduleDarkUntil.timeIntervalSinceReferenceDate, forKey: Keys.scheduleDarkUntil) }
     }
 
     @Published private(set) var currentLux: Int?
     @Published private(set) var isDarkMode: Bool = false
     @Published private(set) var sensorAvailable: Bool = true
     @Published private(set) var automationPermission: PermissionState = .unknown
+    @Published private(set) var isInScheduledDarkMode: Bool = false
+
+    /// Text to display in the menu bar (next to the icon)
+    var menuBarText: String? {
+        guard showLuxInMenuBar, isEnabled, let lux = currentLux else { return nil }
+        return "\(lux)"
+    }
 
     enum PermissionState {
         case unknown, granted, denied
     }
 
     private var timer: Timer?
+    private var scheduleTimer: Timer?
+    private var delayWorkItem: DispatchWorkItem?
     private var terminationObserver: Any?
 
     private enum Keys {
@@ -56,14 +109,24 @@ final class ThemeManager: ObservableObject {
         static let threshold = "threshold"
         static let hysteresis = "hysteresis"
         static let pollInterval = "pollInterval"
+        static let transitionDelay = "transitionDelay"
         static let preferredDarkMode = "preferredDarkMode"
         static let hasStoredPreference = "hasStoredPreference"
+        static let showLuxInMenuBar = "showLuxInMenuBar"
+        static let scheduleEnabled = "scheduleEnabled"
+        static let scheduleDarkFrom = "scheduleDarkFrom"
+        static let scheduleDarkUntil = "scheduleDarkUntil"
     }
 
     private enum Defaults {
         static let threshold = 50_000
         static let hysteresis = 20_000
         static let pollInterval = 30
+        static let transitionDelay = 5
+    }
+
+    static var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
     }
 
     init() {
@@ -72,13 +135,31 @@ final class ThemeManager: ObservableObject {
             Keys.isEnabled: true,
             Keys.threshold: Defaults.threshold,
             Keys.hysteresis: Defaults.hysteresis,
-            Keys.pollInterval: Defaults.pollInterval
+            Keys.pollInterval: Defaults.pollInterval,
+            Keys.transitionDelay: Defaults.transitionDelay,
+            Keys.showLuxInMenuBar: false,
+            Keys.scheduleEnabled: false
         ])
 
         self.isEnabled = defaults.bool(forKey: Keys.isEnabled)
         self.threshold = defaults.integer(forKey: Keys.threshold)
         self.hysteresis = defaults.integer(forKey: Keys.hysteresis)
         self.pollInterval = defaults.integer(forKey: Keys.pollInterval)
+        self.transitionDelay = defaults.integer(forKey: Keys.transitionDelay)
+        self.launchAtLogin = SMAppService.mainApp.status == .enabled
+        self.showLuxInMenuBar = defaults.bool(forKey: Keys.showLuxInMenuBar)
+        self.scheduleEnabled = defaults.bool(forKey: Keys.scheduleEnabled)
+
+        // Load schedule times (default to 22:00–07:00)
+        if defaults.object(forKey: Keys.scheduleDarkFrom) != nil {
+            self.scheduleDarkFrom = Date(timeIntervalSinceReferenceDate: defaults.double(forKey: Keys.scheduleDarkFrom))
+            self.scheduleDarkUntil = Date(timeIntervalSinceReferenceDate: defaults.double(forKey: Keys.scheduleDarkUntil))
+        } else {
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            self.scheduleDarkFrom = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: today)!
+            self.scheduleDarkUntil = calendar.date(bySettingHour: 7, minute: 0, second: 0, of: today)!
+        }
 
         // Load saved preferred theme, or capture current system theme as default
         if defaults.bool(forKey: Keys.hasStoredPreference) {
@@ -96,6 +177,7 @@ final class ThemeManager: ObservableObject {
             isEnabled = false
         }
         if isEnabled { startPolling() }
+        if scheduleEnabled { startScheduleTimer() }
 
         // Restore preferred theme when the app quits
         terminationObserver = NotificationCenter.default.addObserver(
@@ -137,6 +219,7 @@ final class ThemeManager: ObservableObject {
 
     private func handleAppQuit() {
         guard isEnabled, automationPermission == .granted else { return }
+        cancelPendingSwitch()
         restorePreferredTheme()
     }
 
@@ -176,6 +259,55 @@ final class ThemeManager: ObservableObject {
         }
     }
 
+    // MARK: - Schedule
+
+    private func restartScheduleTimer() {
+        scheduleTimer?.invalidate()
+        scheduleTimer = nil
+        if scheduleEnabled { startScheduleTimer() }
+    }
+
+    private func startScheduleTimer() {
+        evaluateSchedule()
+        // Check schedule every 60 seconds
+        scheduleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.evaluateSchedule()
+        }
+    }
+
+    private func evaluateSchedule() {
+        guard scheduleEnabled, automationPermission == .granted else {
+            isInScheduledDarkMode = false
+            return
+        }
+
+        let calendar = Calendar.current
+        let now = Date()
+        let fromComponents = calendar.dateComponents([.hour, .minute], from: scheduleDarkFrom)
+        let untilComponents = calendar.dateComponents([.hour, .minute], from: scheduleDarkUntil)
+
+        let fromMinutes = (fromComponents.hour ?? 22) * 60 + (fromComponents.minute ?? 0)
+        let untilMinutes = (untilComponents.hour ?? 7) * 60 + (untilComponents.minute ?? 0)
+        let nowComponents = calendar.dateComponents([.hour, .minute], from: now)
+        let nowMinutes = (nowComponents.hour ?? 0) * 60 + (nowComponents.minute ?? 0)
+
+        let inSchedule: Bool
+        if fromMinutes <= untilMinutes {
+            // Same-day range (e.g. 09:00–17:00)
+            inSchedule = nowMinutes >= fromMinutes && nowMinutes < untilMinutes
+        } else {
+            // Overnight range (e.g. 22:00–07:00)
+            inSchedule = nowMinutes >= fromMinutes || nowMinutes < untilMinutes
+        }
+
+        isInScheduledDarkMode = inSchedule
+        if inSchedule && !isDarkMode {
+            setSystemDarkMode(true)
+        } else if !inSchedule && isDarkMode && isEnabled {
+            // When leaving schedule, let the sensor take over on next poll
+        }
+    }
+
     // MARK: - Polling
 
     private func restartPolling() {
@@ -207,6 +339,11 @@ final class ThemeManager: ObservableObject {
                     if self.automationPermission == .granted {
                         self.evaluateThreshold(lux: lux)
                     }
+                } else {
+                    // Sensor unavailable (e.g. lid closed in clamshell mode)
+                    // Cancel any pending switch — we can't trust the last reading
+                    self.currentLux = nil
+                    self.cancelPendingSwitch()
                 }
             }
         }
@@ -215,14 +352,53 @@ final class ThemeManager: ObservableObject {
     // MARK: - Threshold evaluation
 
     private func evaluateThreshold(lux: Int) {
+        // Don't override the schedule
+        if isInScheduledDarkMode { return }
+
         let upper = threshold + hysteresis
         let lower = max(0, threshold - hysteresis)
 
+        let wantDark: Bool?
         if lux >= upper && isDarkMode {
-            setSystemDarkMode(false)
+            wantDark = false
         } else if lux <= lower && !isDarkMode {
-            setSystemDarkMode(true)
+            wantDark = true
+        } else {
+            wantDark = nil
         }
+
+        guard let wantDark else {
+            // Lux is in the dead zone — cancel any pending switch
+            cancelPendingSwitch()
+            return
+        }
+
+        scheduleDeferredSwitch(dark: wantDark)
+    }
+
+    // MARK: - Transition delay
+
+    private func scheduleDeferredSwitch(dark: Bool) {
+        // If there's already a pending switch to the same mode, let it run
+        if delayWorkItem != nil { return }
+
+        guard transitionDelay > 0 else {
+            setSystemDarkMode(dark)
+            return
+        }
+
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.isEnabled else { return }
+            self.delayWorkItem = nil
+            self.setSystemDarkMode(dark)
+        }
+        delayWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(transitionDelay), execute: work)
+    }
+
+    private func cancelPendingSwitch() {
+        delayWorkItem?.cancel()
+        delayWorkItem = nil
     }
 
     private func setSystemDarkMode(_ dark: Bool) {
